@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Chatbot con Voz</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .chat-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .messages {
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #0084ff;
+            color: white;
+            margin-left: auto;
+        }
+        .bot-message {
+            background-color: #e4e6eb;
+            color: black;
+        }
+        .typing {
+            font-style: italic;
+            color: #666;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            align-items: center;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            font-size: 16px;
+            outline: none;
+        }
+        input[type="text"]:focus {
+            border-color: #0084ff;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #0084ff;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        button:hover {
+            background-color: #0073e6;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        #micButton {
+            padding: 12px;
+            background-color: #28a745;
+        }
+        #micButton.recording {
+            background-color: #dc3545;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .voice-wave {
+            display: none;
+            align-items: center;
+            gap: 3px;
+            height: 20px;
+            margin-left: 10px;
+        }
+        .voice-wave.active {
+            display: flex;
+        }
+        .voice-wave-bar {
+            width: 3px;
+            height: 100%;
+            background-color: #0084ff;
+            border-radius: 3px;
+            animation: sound 0.5s infinite alternate;
+        }
+        @keyframes sound {
+            0% { height: 20%; }
+            100% { height: 100%; }
+        }
+        .voice-wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .voice-wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .voice-wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .voice-wave-bar:nth-child(5) { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <h2 style="text-align: center; color: #1c1e21; margin-bottom: 20px;">Chatbot con Voz</h2>
+        <div class="status" id="status"></div>
+        <div class="messages" id="messages"></div>
+        <div class="input-container">
+            <input type="text" id="userInput" placeholder="Escribe tu mensaje..." 
+                   onkeypress="if(event.key === 'Enter') enviarMensaje()">
+            <button onclick="enviarMensaje()" id="sendButton">
+                <i class="fas fa-paper-plane"></i>
+                Enviar
+            </button>
+            <button id="micButton" onclick="toggleVoiceRecognition()">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <div class="voice-wave" id="voiceWave">
+                <div class="voice-wave-bar"></div>
+                <div class="voice-wave-bar"></div>
+                <div class="voice-wave-bar"></div>
+                <div class="voice-wave-bar"></div>
+                <div class="voice-wave-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mostrar mensaje inicial del bot
+        window.onload = () => {
+            mostrarMensaje("¡Hola! Soy chinri tu mejor amiga divertida!", 'bot');
+            initializeSpeechRecognition();
+        };
+
+        let currentMessageDiv = null;
+        let recognition = null;
+        let isRecording = false;
+
+        function initializeSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                recognition.lang = 'es-ES';
+
+                recognition.onstart = () => {
+                    isRecording = true;
+                    document.getElementById('micButton').classList.add('recording');
+                    document.getElementById('voiceWave').classList.add('active');
+                    document.getElementById('status').textContent = 'Escuchando...';
+                };
+
+                recognition.onend = () => {
+                    isRecording = false;
+                    document.getElementById('micButton').classList.remove('recording');
+                    document.getElementById('voiceWave').classList.remove('active');
+                    document.getElementById('status').textContent = '';
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = Array.from(event.results)
+                        .map(result => result[0].transcript)
+                        .join('');
+                    
+                    document.getElementById('userInput').value = transcript;
+                    
+                    if (event.results[0].isFinal) {
+                        recognition.stop();
+                        enviarMensaje();
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Error en reconocimiento de voz:', event.error);
+                    document.getElementById('status').textContent = 'Error en el reconocimiento de voz';
+                    isRecording = false;
+                    document.getElementById('micButton').classList.remove('recording');
+                    document.getElementById('voiceWave').classList.remove('active');
+                };
+            } else {
+                document.getElementById('micButton').style.display = 'none';
+                console.error('El reconocimiento de voz no está soportado en este navegador');
+            }
+        }
+
+        function toggleVoiceRecognition() {
+            if (!recognition) return;
+            
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+
+        async function enviarMensaje() {
+            const input = document.getElementById('userInput');
+            const button = document.getElementById('sendButton');
+            const micButton = document.getElementById('micButton');
+            const status = document.getElementById('status');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Limpiar input y deshabilitar controles
+            input.value = '';
+            input.disabled = true;
+            button.disabled = true;
+            micButton.disabled = true;
+            
+            // Mostrar mensaje del usuario
+            mostrarMensaje(message, 'user');
+
+            try {
+                // Crear div para la respuesta del bot
+                currentMessageDiv = document.createElement('div');
+                currentMessageDiv.className = 'message bot-message';
+                document.getElementById('messages').appendChild(currentMessageDiv);
+                
+                // Iniciar EventSource para streaming
+                const eventSource = new EventSource(`http://localhost:3000/chat-stream?message=${encodeURIComponent(message)}`);
+                
+                eventSource.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.chunk) {
+                        // Actualizar el mensaje con el nuevo texto
+                        currentMessageDiv.textContent = data.full_text;
+                        currentMessageDiv.scrollIntoView({ behavior: 'smooth' });
+                    }
+                    
+                    if (data.audio) {
+                        // Reproducir audio cuando esté disponible
+                        const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+                        audio.play();
+                        eventSource.close();
+                        status.textContent = '';
+                    }
+                    
+                    if (data.error) {
+                        status.textContent = data.error;
+                        eventSource.close();
+                    }
+                    
+                    if (data.done) {
+                        // Habilitar controles cuando termine
+                        input.disabled = false;
+                        button.disabled = false;
+                        micButton.disabled = false;
+                        input.focus();
+                        eventSource.close();
+                    }
+                };
+                
+                eventSource.onerror = () => {
+                    status.textContent = "Error en la conexión";
+                    input.disabled = false;
+                    button.disabled = false;
+                    micButton.disabled = false;
+                    eventSource.close();
+                };
+                
+            } catch (error) {
+                console.error('Error:', error);
+                status.textContent = `Error: ${error.message}`;
+                input.disabled = false;
+                button.disabled = false;
+                micButton.disabled = false;
+            }
+        }
+
+        function mostrarMensaje(texto, tipo) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${tipo}-message`;
+            messageDiv.textContent = texto;
+            messagesDiv.appendChild(messageDiv);
+            messageDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+venv/
+.vscode/
+temp_*.txt
+temp_*.wav
